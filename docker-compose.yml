@@ -1,0 +1,90 @@
+version: "3"
+services:
+  db:
+    image: mysql
+    container_name: mysqlempdb
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_DATABASE : ms
+      MYSQL_ROOT_PASSWORD : root
+    networks:
+      - test-network
+  eureka-server:
+    image: eureka-server
+    container_name: eureka-server
+    ports:
+      - 8761:8761
+    networks:
+      - test-network
+#  cloud-config:
+#    image: cloud-config
+#    container_name: cloud-config
+#    ports:
+#      - 8888:8888
+#    networks:
+#      - test-network
+#    environment:
+#      - STORAGE_TYPE=mem
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: zipkin
+    environment:
+      - STORAGE_TYPE=mem
+    ports:
+      - "9411:9411"
+    depends_on:
+      - eureka-server
+    networks:
+      - test-network
+  api-gateway:
+    image: api-gateway
+    container_name: api-gateway
+    ports:
+      - 9083:9083
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    depends_on:
+      - eureka-server
+    restart: always
+    networks:
+      - test-network
+#    links:
+#      - "eureka-server: eureka-server"
+  department-service:
+    image: department-service
+    container_name: department-service
+    depends_on:
+      - eureka-server
+      - api-gateway
+      - cloud-config
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      #      SPRING_CONFIG_IMPORT: optional:configserver:http://cloud-config:8888/
+      ZIPKIN_ENABLED_BASE-URL: http://zipkin:9411/
+    restart: always
+  user-service:
+    image: user-service
+    container_name: user-service
+    depends_on:
+      - eureka-server
+      - api-gateway
+      - cloud-config
+      - department-service
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+#      SPRING_CONFIG_IMPORT: optional:configserver:http://cloud-config:8888/
+      ZIPKIN_ENABLED_BASE-URL: http://zipkin:9411/
+    restart: always
+#    links:
+#      - "eureka-server: eureka-server"
+#      - "api-gateway: api-gateway"
+#      - "cloud-config: cloud-config"
+#      - "zipkin : zipkin"
+#      - "db: mysqlempdb"
+    networks:
+      - test-network
+
+networks:
+   test-network:
+     driver: bridge
